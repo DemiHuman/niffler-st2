@@ -10,7 +10,7 @@ import retrofit2.converter.jackson.JacksonConverterFactory;
 
 public class GenerateCategoryExtension implements ParameterResolver, BeforeEachCallback {
 
-    public static ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace
+    public static ExtensionContext.Namespace CATEGORY_NAMESPACE = ExtensionContext.Namespace
             .create(GenerateCategoryExtension.class);
 
     private static final OkHttpClient httpClient = new OkHttpClient.Builder()
@@ -37,7 +37,7 @@ public class GenerateCategoryExtension implements ParameterResolver, BeforeEachC
             CategoryJson created = categoryService.addCategory(category)
                     .execute()
                     .body();
-            context.getStore(NAMESPACE).put("category", created);
+            context.getStore(CATEGORY_NAMESPACE).put("category", created);
         }
     }
 
@@ -50,6 +50,6 @@ public class GenerateCategoryExtension implements ParameterResolver, BeforeEachC
     @Override
     public Object resolveParameter(ParameterContext parameterContext,
                                    ExtensionContext extensionContext) throws ParameterResolutionException {
-        return extensionContext.getStore(NAMESPACE).get("category", CategoryJson.class);
+        return extensionContext.getStore(CATEGORY_NAMESPACE).get("category", CategoryJson.class);
     }
 }
