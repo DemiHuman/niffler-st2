@@ -3,34 +3,32 @@ package niffler.test;
 import static com.codeborne.selenide.Condition.text;
 import static com.codeborne.selenide.Condition.visible;
 import static com.codeborne.selenide.Selenide.$;
+import static io.qameta.allure.Allure.step;
 
 import com.codeborne.selenide.Selenide;
-import io.qameta.allure.Allure;
-import io.qameta.allure.AllureId;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.UUID;
+
 import niffler.db.dao.NifflerUsersDAO;
 import niffler.db.dao.NifflerUsersDAOJdbc;
-import niffler.db.entity.Authority;
-import niffler.db.entity.AuthorityEntity;
 import niffler.db.entity.UserEntity;
-import niffler.jupiter.annotation.ClasspathUser;
 import niffler.jupiter.extension.GenerateNewUserExtension;
-import niffler.model.UserJson;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 public class LoginNewUserTest extends BaseWebTest {
+
+  private final NifflerUsersDAO usersDAO = new NifflerUsersDAOJdbc();
 
   @Test
   @ExtendWith(GenerateNewUserExtension.class)
   void loginTest(UserEntity ue) throws IOException {
-    Allure.step("open page", () -> Selenide.open("http://127.0.0.1:3000/main"));
+
+    String newName = "TheChangeName";
+    String newPassword = "55555";
+
+    step("open page", () -> Selenide.open("http://127.0.0.1:3000/main"));
     $("a[href*='redirect']").click();
     $("input[name='username']").setValue(ue.getUsername());
     $("input[name='password']").setValue(ue.getPassword());
@@ -38,6 +36,23 @@ public class LoginNewUserTest extends BaseWebTest {
 
     $("a[href*='friends']").click();
     $(".header").should(visible).shouldHave(text("Niffler. The coin keeper."));
-  }
 
+    step("Read and output in console the user name before changing", () -> {
+      System.out.println(usersDAO.readUser(ue.getUsername()).getUsername());
+    });
+
+    step("Change username & password", () -> {
+      ue.setUsername(newName);
+      ue.setPassword(newPassword);
+      usersDAO.updateUserById(ue);
+    });
+
+    step("Check changing of the name user", () -> {
+      Assertions.assertEquals(newName, usersDAO.readUser(ue.getUsername()).getUsername());
+      System.out.println(usersDAO.readUser(ue.getUsername()).getUsername());
+    });
+
+    step("Delete user from DB and check", () ->
+      Assertions.assertEquals(1, usersDAO.deleteUser(ue)));
+  }
 }
