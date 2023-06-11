@@ -2,11 +2,10 @@ package niffler.jupiter.extension;
 
 import io.qameta.allure.AllureId;
 import java.lang.reflect.Parameter;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
+
 import niffler.jupiter.annotation.User;
 import niffler.jupiter.annotation.User.UserType;
 import niffler.model.UserJson;
@@ -24,6 +23,8 @@ public class UsersQueueExtension implements
     ParameterResolver {
 
   public static Namespace USER_EXTENSION_NAMESPACE = Namespace.create(UsersQueueExtension.class);
+
+  private static Map<UserType, String> usernames = new HashMap<>();
 
   private static Queue<UserJson> USERS_WITH_FRIENDS_QUEUE = new ConcurrentLinkedQueue<>();
   private static Queue<UserJson> USERS_INVITATION_SENT_QUEUE = new ConcurrentLinkedQueue<>();
@@ -45,6 +46,8 @@ public class UsersQueueExtension implements
   public void beforeEach(ExtensionContext context) throws Exception {
     final String testId = getTestId(context);
     Parameter[] testParameters = context.getRequiredTestMethod().getParameters();
+    List<Map<UserType, UserJson>> users = new ArrayList<>();
+
     for (Parameter parameter : testParameters) {
       User desiredUser = parameter.getAnnotation(User.class);
       if (desiredUser != null) {
@@ -58,8 +61,8 @@ public class UsersQueueExtension implements
             case INVITATION_RECEIVED -> user = USERS_INVITATION_RECEIVED_QUEUE.poll();
           }
         }
-
-        context.getStore(USER_EXTENSION_NAMESPACE).put(testId, Map.of(userType, user));
+        users.add(Map.of(userType, user));
+        context.getStore(USER_EXTENSION_NAMESPACE).put(testId, users);
       }
     }
   }
@@ -68,14 +71,16 @@ public class UsersQueueExtension implements
   @Override
   public void afterTestExecution(ExtensionContext context) throws Exception {
     final String testId = getTestId(context);
-    Map<UserType, UserJson> user = (Map<UserType, UserJson>) context.getStore(USER_EXTENSION_NAMESPACE)
+    List<Map<UserType, UserJson>> users = (List<Map<UserType, UserJson>>) context.getStore(USER_EXTENSION_NAMESPACE)
         .get(testId);
 
-    UserType userType = user.keySet().iterator().next();
-    switch (userType) {
-      case WITH_FRIENDS -> USERS_WITH_FRIENDS_QUEUE.add(user.get(userType));
-      case INVITATION_SENT -> USERS_INVITATION_SENT_QUEUE.add(user.get(userType));
-      case INVITATION_RECEIVED -> USERS_INVITATION_RECEIVED_QUEUE.add(user.get(userType));
+    for (Map<UserType, UserJson> user : users) {
+      UserType userType = user.keySet().iterator().next();
+      switch (userType) {
+        case WITH_FRIENDS -> USERS_WITH_FRIENDS_QUEUE.add(user.get(userType));
+        case INVITATION_SENT -> USERS_INVITATION_SENT_QUEUE.add(user.get(userType));
+        case INVITATION_RECEIVED -> USERS_INVITATION_RECEIVED_QUEUE.add(user.get(userType));
+      }
     }
   }
 
@@ -91,10 +96,21 @@ public class UsersQueueExtension implements
   public UserJson resolveParameter(ParameterContext parameterContext,
       ExtensionContext extensionContext) throws ParameterResolutionException {
     final String testId = getTestId(extensionContext);
-    Map<UserType, UserJson> user = (Map<UserType, UserJson>) extensionContext.getStore(USER_EXTENSION_NAMESPACE)
+    List<Map<UserType, UserJson>> users = (List<Map<UserType, UserJson>>) extensionContext.getStore(USER_EXTENSION_NAMESPACE)
         .get(testId);
 
-    return user.values().iterator().next();
+    UserType userType = parameterContext.getParameter().getAnnotation(User.class).userType();
+    List<UserJson> userJson = new ArrayList<>();
+
+    for (Map<UserType, UserJson> userMap : users) {
+      for (Map.Entry<UserType, UserJson> user : userMap.entrySet()){
+        if (user.getKey() == userType) {
+          userJson.add(user.getValue());
+          usernames.put(userType, user.getValue().getUsername());
+        }
+      }
+    }
+    return userJson.iterator().next();
   }
 
   private String getTestId(ExtensionContext context) {

@@ -9,6 +9,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import niffler.db.DataSourceProvider;
 import niffler.db.ServiceDB;
+import niffler.db.entity.Authority;
 import niffler.db.entity.AuthorityEntity;
 import niffler.db.entity.UserEntity;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -17,6 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class NifflerUsersDAOJdbc implements NifflerUsersDAO {
 
   private static final DataSource ds = DataSourceProvider.INSTANCE.getDataSource(ServiceDB.NIFFLER_AUTH);
+  private static final PasswordEncoder pe = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+
 
   @Override
   public int createUser(UserEntity user) {
@@ -27,10 +30,10 @@ public class NifflerUsersDAOJdbc implements NifflerUsersDAO {
       conn.setAutoCommit(false);
 
       try (PreparedStatement insertUserSt = conn.prepareStatement("INSERT INTO users "
-          + "(username, password, enabled, account_non_expired, account_non_locked, credentials_non_expired) "
-          + " VALUES (?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
-          PreparedStatement insertAuthoritySt = conn.prepareStatement(
-              "INSERT INTO authorities (user_id, authority) VALUES (?, ?)")) {
+              + "(username, password, enabled, account_non_expired, account_non_locked, credentials_non_expired) "
+              + " VALUES (?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+           PreparedStatement insertAuthoritySt = conn.prepareStatement(
+                   "INSERT INTO authorities (user_id, authority) VALUES (?, ?)")) {
         insertUserSt.setString(1, user.getUsername());
         insertUserSt.setString(2, pe.encode(user.getPassword()));
         insertUserSt.setBoolean(3, user.getEnabled());
@@ -69,7 +72,97 @@ public class NifflerUsersDAOJdbc implements NifflerUsersDAO {
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
+
     return executeUpdate;
+  }
+
+  @Override
+  public int deleteUser(UserEntity user) {
+    int executeDelete;
+
+    final String userID = getUserId(user.getUsername());
+
+    try (Connection conn = ds.getConnection();
+         PreparedStatement authoritiesPrStatement = conn.prepareStatement(
+                 "DELETE FROM authorities WHERE user_id = '" + userID + "'")) {
+      authoritiesPrStatement.executeUpdate();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+
+    try (Connection conn = ds.getConnection();
+         PreparedStatement usersPrStatement = conn.prepareStatement(
+                 "DELETE FROM users WHERE id = '" + userID + "'")) {
+      executeDelete = usersPrStatement.executeUpdate();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+
+    return executeDelete;
+  }
+
+  @Override
+  public int updateUserById(UserEntity user) {
+    int executeUpdate;
+
+    try (Connection conn = ds.getConnection();
+         PreparedStatement st = conn.prepareStatement("UPDATE users "
+                 + "SET username = ?, password = ?, enabled = ?, account_non_expired = ?, account_non_locked = ?, credentials_non_expired = ? "
+                 + "WHERE id = '" + user.getId() + "'")) {
+      st.setString(1, user.getUsername());
+      st.setString(2, pe.encode(user.getPassword()));
+      st.setBoolean(3, user.getEnabled());
+      st.setBoolean(4, user.getAccountNonExpired());
+      st.setBoolean(5, user.getAccountNonLocked());
+      st.setBoolean(6, user.getCredentialsNonExpired());
+
+      executeUpdate = st.executeUpdate();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+
+    return executeUpdate;
+  }
+
+  @Override
+  public UserEntity readUser(String userName) {
+    UserEntity user = new UserEntity();
+    final String userSql = "SELECT * FROM users WHERE username  = '" + userName + "'";
+
+    try (Connection conn = ds.getConnection();
+        Statement st = conn.createStatement();
+        ResultSet rs = st.executeQuery(userSql)
+    ) {
+      while (rs.next()) {
+        user.setId(UUID.fromString(rs.getString("id")));
+        user.setUsername(rs.getString("username"));
+        user.setEnabled(Boolean.valueOf(rs.getString("enabled")));
+        user.setAccountNonExpired(Boolean.valueOf(rs.getString("account_non_expired")));
+        user.setAccountNonLocked(Boolean.valueOf(rs.getString("account_non_locked")));
+        user.setCredentialsNonExpired(Boolean.valueOf(rs.getString("credentials_non_expired")));
+      }
+
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+
+    AuthorityEntity userAuthorities = new AuthorityEntity();
+    final String userAuthoritiesSql = "SELECT * FROM authorities WHERE user_id  = '" + user.getId() + "'";
+
+    try (Connection conn = ds.getConnection();
+         Statement st = conn.createStatement();
+         ResultSet rs = st.executeQuery(userAuthoritiesSql)
+    ) {
+      while (rs.next()) {
+        userAuthorities.setId(UUID.fromString(rs.getString("id")));
+        userAuthorities.setAuthority(Authority.valueOf(rs.getString("authority")));
+        user.getAuthorities().add(userAuthorities);
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+
+    return user;
   }
 
   @Override

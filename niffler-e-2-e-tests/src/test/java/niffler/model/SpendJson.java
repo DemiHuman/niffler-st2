@@ -11,27 +11,27 @@ public class SpendJson {
     private Date spendDate;
     @JsonProperty("category")
     private String category;
-  @JsonProperty("currency")
-  private CurrencyValues currency;
-  @JsonProperty("amount")
-  private Double amount;
-  @JsonProperty("description")
-  private String description;
-  @JsonProperty("username")
-  private String username;
+    @JsonProperty("currency")
+    private CurrencyValues currency;
+    @JsonProperty("amount")
+    private Double amount;
+    @JsonProperty("description")
+    private String description;
+    @JsonProperty("username")
+    private String username;
 
-  public SpendJson() {
-  }
+    public SpendJson() {
+    }
 
-  public UUID getId() {
+    public UUID getId() {
     return id;
-  }
+    }
 
-  public void setId(UUID id) {
+    public void setId(UUID id) {
     this.id = id;
-  }
+    }
 
-  public Date getSpendDate() {
+    public Date getSpendDate() {
         return spendDate;
     }
 

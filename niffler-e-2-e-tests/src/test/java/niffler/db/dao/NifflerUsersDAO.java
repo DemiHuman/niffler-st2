@@ -8,7 +8,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public interface NifflerUsersDAO {
 
   PasswordEncoder pe = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+
   int createUser(UserEntity user);
+
+  int deleteUser(UserEntity user);
+
+  int updateUserById(UserEntity user);
+
+  UserEntity readUser(String userName);
 
   String getUserId(String userName);
 
